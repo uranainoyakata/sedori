@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>画像暗記カード</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Interフォントを全体に適用 */
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: contain; /* ページ全体のスクロールを防止 */
+        }
+        /* ビューポートの高さを基準にコンテナの高さを設定 */
+        .main-container {
+            height: 100vh;
+            height: -webkit-fill-available; /* iOS Safariでの高さの問題に対応 */
+            display: flex;
+            flex-direction: column;
+        }
+        /* スワイプ中のアニメーションを滑らかにする */
+        #image-card {
+            transition: transform 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen overflow-hidden">
+
+    <div class="w-full max-w-md h-full bg-white shadow-lg flex flex-col p-4 main-container">
+        <header class="mb-4 text-center flex-shrink-0">
+            <h1 class="text-2xl font-bold text-gray-900">画像暗記カード 🧠</h1>
+            <p class="text-gray-500 mt-1 text-sm">左右にスワイプしてカードをめくります。</p>
+        </header>
+
+        <!-- ジャンル選択セクション -->
+        <div class="mb-4 flex-shrink-0">
+            <label for="genre-select" class="block text-sm font-medium text-gray-700 mb-1">ジャンル選択:</label>
+            <select id="genre-select" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"></select>
+        </div>
+
+        <!-- 画像表示エリア (スワイプ対応) -->
+        <div id="image-stack" class="relative w-full bg-gray-200 rounded-lg shadow-inner flex-grow min-h-0 flex items-center justify-center">
+             <!-- カード本体 -->
+            <div id="image-card" class="absolute w-full h-full cursor-grab active:cursor-grabbing">
+                <img id="image" src="" alt="暗記用の画像" class="w-full h-full object-contain rounded-lg">
+                <!-- 画像の下4分の1を隠すオーバーレイ -->
+                <div id="overlay" class="absolute bottom-0 left-0 w-full h-1/4 bg-gray-700 transition-opacity duration-300 rounded-b-lg"></div>
+            </div>
+        </div>
+
+        <!-- 操作ボタンエリア -->
+        <div class="mt-4 flex-shrink-0 flex justify-center">
+            <button id="reveal-btn" class="w-1/2 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-transform transform active:scale-95 text-sm">答えを見る</button>
+        </div>
+    </div>
+
+    <!-- ★★★ 写真リストを外部ファイルから読み込み、完了後/失敗後に関数を呼び出します ★★★ -->
+    <script src="photolist.js" onload="initApp()" onerror="handleScriptError()"></script>
+
+    <script>
+        // photolist.js の読み込み失敗時に呼ばれる関数
+        function handleScriptError() {
+            console.error("photolist.jsの読み込みに失敗しました。");
+            document.body.innerHTML = `<div style="padding: 2rem; text-align: center; color: red; font-family: sans-serif;">
+                <h2>エラー</h2>
+                <p>写真リスト(photolist.js)を読み込めませんでした。<br>ファイルが存在するか、ファイル名が正しいか確認してください。</p>
+            </div>`;
+        }
+
+        // photolist.js の読み込み成功時に呼ばれる関数
+        function initApp() {
+            // imageDataは photolist.js から正常に読み込まれました
+
+            const genreSelect = document.getElementById('genre-select');
+            const imageCard = document.getElementById('image-card');
+            const imageElem = document.getElementById('image');
+            const overlay = document.getElementById('overlay');
+            const revealBtn = document.getElementById('reveal-btn');
+
+            let currentGenre = '';
+            let currentIndex = 0;
+            let currentImages = [];
+
+            // スワイプ関連の変数
+            let isDragging = false;
+            let startX = 0;
+            let currentX = 0;
+            const swipeThreshold = 80; // スワイプと判定する最小距離
+
+            function updateImage(animate = false) {
+                if (currentImages.length > 0) {
+                    if (animate) {
+                        imageCard.style.transition = 'transform 0.3s ease';
+                    }
+                    imageElem.src = currentImages[currentIndex];
+                    overlay.style.opacity = '1';
+                    revealBtn.disabled = false;
+                } else {
+                    imageElem.src = 'https://placehold.co/600x800/e2e8f0/94a3b8?text=画像がありません';
+                    overlay.style.opacity = '0';
+                    revealBtn.disabled = true;
+                }
+            }
+
+            function changeImage(direction) {
+                if (currentImages.length === 0) return;
+                const outDirection = direction === 'next' ? 1 : -1;
+                
+                imageCard.style.transition = 'transform 0.4s ease';
+                imageCard.style.transform = `translateX(${outDirection * 500}px) rotate(${outDirection * 30}deg)`;
+
+                setTimeout(() => {
+                    imageCard.style.transition = 'none';
+                    imageCard.style.transform = 'translateX(0) rotate(0)';
+                    
+                    if (direction === 'next') {
+                        currentIndex = (currentIndex + 1) % currentImages.length;
+                    } else {
+                        currentIndex = (currentIndex - 1 + currentImages.length) % currentImages.length;
+                    }
+                    updateImage();
+                }, 400);
+            }
+
+            function handleGenreChange() {
+                currentGenre = genreSelect.value;
+                currentImages = imageData[currentGenre] || [];
+                currentIndex = 0;
+                updateImage();
+            }
+
+            Object.keys(imageData).forEach(genre => {
+                const option = document.createElement('option');
+                option.value = genre;
+                option.textContent = genre;
+                genreSelect.appendChild(option);
+            });
+
+            genreSelect.addEventListener('change', handleGenreChange);
+            revealBtn.addEventListener('click', () => {
+                overlay.style.opacity = '0';
+            });
+
+            // --- スワイプ処理 ---
+            function dragStart(e) {
+                isDragging = true;
+                startX = e.pageX || e.touches[0].pageX;
+                imageCard.style.transition = 'none'; // ドラッグ中はアニメーションをオフ
+            }
+
+            function dragMove(e) {
+                if (!isDragging) return;
+                e.preventDefault();
+                currentX = e.pageX || e.touches[0].pageX;
+                const diffX = currentX - startX;
+                const rotation = diffX / 20; // スワイプ量に応じてカードを傾ける
+                imageCard.style.transform = `translateX(${diffX}px) rotate(${rotation}deg)`;
+            }
+
+            function dragEnd(e) {
+                if (!isDragging) return;
+                isDragging = false;
+                const diffX = currentX - startX;
+
+                if (Math.abs(diffX) > swipeThreshold) {
+                    changeImage(diffX > 0 ? 'prev' : 'next');
+                } else {
+                    // スワイプが不十分な場合は元の位置に戻す
+                    imageCard.style.transition = 'transform 0.3s ease';
+                    imageCard.style.transform = 'translateX(0) rotate(0)';
+                }
+            }
+            
+            // マウスイベント
+            imageCard.addEventListener('mousedown', dragStart);
+            imageCard.addEventListener('mousemove', dragMove);
+            imageCard.addEventListener('mouseup', dragEnd);
+            imageCard.addEventListener('mouseleave', dragEnd); // カード外でマウスを離した場合
+
+            // タッチイベント
+            imageCard.addEventListener('touchstart', dragStart, { passive: true });
+            imageCard.addEventListener('touchmove', dragMove, { passive: false });
+            imageCard.addEventListener('touchend', dragEnd);
+            
+            imageElem.onerror = function() {
+                this.src = `https://placehold.co/600x800/e2e8f0/94a3b8?text=画像読込エラー`;
+                overlay.style.opacity = '0';
+            };
+
+            if (Object.keys(imageData).length > 0) {
+                genreSelect.value = Object.keys(imageData)[0];
+                handleGenreChange();
+            }
+        }
+    </script>
+</body>
+</html>
